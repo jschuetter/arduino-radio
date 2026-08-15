@@ -2,6 +2,9 @@
 #include <Wire.h>
 #include <TEA5767.h>
 
+#define FM_MIN 88.0
+#define FM_MAX 108.0
+
 // Optional: this callback function can be passed to the TEA5767 constructor.
 // It is invoked whenever the radio state is updated.
 // You can use it to display the current information on an external
@@ -40,9 +43,45 @@ unsigned long lastEventMs = 0;
 const int countPerDetent = 4;
 const double mhzInc = 0.2;
 
+// EEPROM setup for storing bookmarks and last freq. value
+#include <EEPROM.h>
+#define SETTINGS_ADDR 0
+const long settings_id = 0xCAFE;
+struct radio_settings_t {
+  double lastFreq;
+  int bookmarksLen;
+  double bookmarks[10];
+  long id;
+};
+radio_settings_t settings;
+
+void save_settings() {
+  EEPROM.put(SETTINGS_ADDR, settings);
+}
+
+radio_settings_t load_settings() {
+  radio_settings_t s = EEPROM.get(SETTINGS_ADDR, s);
+  if (settings.id != settings_id) {
+    // If settings invalid, initialize with default values
+    s.lastFreq = 90.0;
+    s.bookmarksLen = 0;
+    // Fill bookmarks array with zeros
+    memset(s.bookmarks, 0.0, sizeof(s.bookmarks));
+    s.id = settings_id;
+    settings = s;
+    save_settings();
+  } else {
+    settings = s;
+  }
+  return s;
+}
+
 void setup() {
   // Get serial output
   Serial.begin(9600);
+
+  // Load settings from EEPROM
+  settings = load_settings();
 
   // RADIO
   Wire.begin();
@@ -67,9 +106,10 @@ void loop() {
       Serial.print("New freq: ");
       Serial.println(newFreq);
       // Make sure new frequency is valid
-      if (newFreq <= 108.0 && newFreq >= 88.0) {
+      if (newFreq <= FM_MAX && newFreq >= FM_MIN) {
         currentFreq = newFreq;
         radio.setFrequency(currentFreq);
+        settings.lastFreq = currentFreq;
       }
       lastEventMs = millis();
     }
