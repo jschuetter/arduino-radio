@@ -226,12 +226,6 @@ void sortBookmarks() {
     Serial.print(" ");
     double val = settings.bookmarks[i];
     Serial.println(val);
-    // if (val ==  0.0) {
-    //   for (int j = i+1; j < MaxBookmarks; j++) {
-    //     settings.bookmarks[j-1] = settings.bookmarks[j];
-    //   }
-    //   settings.bookmarks[MaxBookmarks-1] = 0.0;
-    // } else {
     int newIdx = i+1;
     if (val == 0.0) newIdx = MaxBookmarks-1;
     while (
@@ -247,7 +241,6 @@ void sortBookmarks() {
     }
     i++;
     settings.bookmarks[newIdx-1] = val;
-    // }
   }
 
   int len = 0;
