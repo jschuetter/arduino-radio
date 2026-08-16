@@ -41,14 +41,15 @@ U8G2_SH1106_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 // Rotary encoder setup
 Encoder enc(3,2);
 long encPos = 0;
-const unsigned long debounceMs = 250;
+const unsigned long DebounceMs = 250;
 unsigned long lastEventMs = 0;
-const int countPerDetent = 4;
-const double mhzInc = 0.2;
+const int CountPerDetent = 4;
+const double MhzInc = 0.2;
 
 // EEPROM setup for storing bookmarks and last freq. value
 #define SETTINGS_ADDR 0
-const long settings_id = 0xCAFE;
+const long SettingsId = 0xCAFE;
+const int MaxBookmarks = 10;
 struct radio_settings_t {
   double lastFreq;
   int bookmarksLen;
@@ -83,12 +84,12 @@ void loop() {
   long newPos = enc.read();
   if (newPos != encPos) {
     unsigned long t = millis();
-    if (t - lastEventMs >= debounceMs) {
+    if (t - lastEventMs >= DebounceMs) {
       // Increment current frequency by number of detents
-      double freqInc = (newPos > encPos) ? ceil(double(newPos - encPos) / countPerDetent) : floor(double(newPos - encPos) / countPerDetent);
-      double newFreq = currentFreq + mhzInc * freqInc;
+      double freqInc = (newPos > encPos) ? ceil(double(newPos - encPos) / CountPerDetent) : floor(double(newPos - encPos) / CountPerDetent);
+      double newFreq = currentFreq + MhzInc * freqInc;
       Serial.print("Enc delta: ");
-      Serial.println(double(newPos - encPos)/countPerDetent);
+      Serial.println(double(newPos - encPos)/CountPerDetent);
       Serial.print("New freq: ");
       Serial.println(newFreq);
       // Make sure new frequency is valid
@@ -130,7 +131,7 @@ bool load_settings() {
   Serial.println(s.bookmarksLen);
   Serial.println(s.bookmarks[0]);
   Serial.println(s.id);
-  if (s.id == settings_id) {
+  if (s.id == SettingsId) {
     settings = s;
     return true;
   } else {
@@ -139,11 +140,15 @@ bool load_settings() {
     s.bookmarksLen = 0;
     // Fill bookmarks array with zeros
     memset(s.bookmarks, 0.0, sizeof(s.bookmarks));
-    s.id = settings_id;
+    s.id = SettingsId;
     settings = s;
     save_settings();
     return false;
   }
+}
+
+bool addBookmark(double freq) {
+  if (settings.bookmarksLen < )
 }
 
 void radioPrintInfo(const tea5767_info_t *info) {
