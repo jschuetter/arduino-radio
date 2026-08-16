@@ -55,37 +55,21 @@ struct radio_settings_t {
 };
 radio_settings_t settings;
 
-void save_settings() {
-  EEPROM.put(SETTINGS_ADDR, settings);
-}
-
-radio_settings_t load_settings() {
-  radio_settings_t s = EEPROM.get(SETTINGS_ADDR, s);
-  if (settings.id != settings_id) {
-    // If settings invalid, initialize with default values
-    s.lastFreq = 90.0;
-    s.bookmarksLen = 0;
-    // Fill bookmarks array with zeros
-    memset(s.bookmarks, 0.0, sizeof(s.bookmarks));
-    s.id = settings_id;
-    settings = s;
-    save_settings();
-  } else {
-    settings = s;
-  }
-  return s;
-}
-
+bool loadSuccess;
 void setup() {
   // Get serial output
   Serial.begin(9600);
 
   // Load settings from EEPROM
-  settings = load_settings();
+  loadSuccess = load_settings();
+  if (!loadSuccess) {
+    Serial.println("Could not load settings.");
+  }
 
   // RADIO
   Wire.begin();
   radio.awake();
+  currentFreq = settings.lastFreq;
   radio.setFrequency(currentFreq);
 
   // DISPLAY
@@ -110,6 +94,7 @@ void loop() {
         currentFreq = newFreq;
         radio.setFrequency(currentFreq);
         settings.lastFreq = currentFreq;
+        save_settings();
       }
       lastEventMs = millis();
     }
@@ -128,6 +113,35 @@ void loop() {
     u8g2.setFont(u8g2_font_timR10_tr);
     u8g2.drawStr(98,64,"MHz");
   } while ( u8g2.nextPage() );
+}
+
+
+void save_settings() {
+  EEPROM.put(SETTINGS_ADDR, settings);
+}
+
+bool load_settings() {
+  // Returns True if settings successfully loaded
+  radio_settings_t s = EEPROM.get(SETTINGS_ADDR, s);
+  Serial.println("Settings loaded:");
+  Serial.println(s.lastFreq);
+  Serial.println(s.bookmarksLen);
+  Serial.println(s.bookmarks[0]);
+  Serial.println(s.id);
+  if (s.id == settings_id) {
+    settings = s;
+    return true;
+  } else {
+    // If settings invalid, initialize with default values
+    s.lastFreq = 90.9;
+    s.bookmarksLen = 0;
+    // Fill bookmarks array with zeros
+    memset(s.bookmarks, 0.0, sizeof(s.bookmarks));
+    s.id = settings_id;
+    settings = s;
+    save_settings();
+    return false;
+  }
 }
 
 void radioPrintInfo(const tea5767_info_t *info) {
