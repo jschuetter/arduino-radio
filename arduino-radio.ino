@@ -248,10 +248,7 @@ void sortBookmarks() {
   // Modified bubble sort algorithm
   int i = 0;
   while (i < MaxBookmarks) {
-    Serial.print(i);
-    Serial.print(" ");
     double val = settings.bookmarks[i];
-    Serial.println(val);
     int newIdx = i+1;
     if (val == 0.0) newIdx = MaxBookmarks-1;
     while (
