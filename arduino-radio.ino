@@ -29,9 +29,7 @@ void radioPrintInfo(const tea5767_info_t *info);
 void radioUpdateConfig(tea5767_config_t *config);
 
 TEA5767 radio(&radioPrintInfo, &radioUpdateConfig);
-float foundStations[10];
-int stationCount;
-double currentFreq = 90.9;
+double currentFreq;
 
 // SSD1306 setup
 // U8G2_SSD1306_128X64_NONAME_1_4W_SW_SPI u8g2(U8G2_R0, /* clock=*/ 13, /* data=*/ 11, /* cs=*/ 10, /* dc=*/ 9, /* reset=*/ 8);
@@ -39,9 +37,16 @@ U8G2_SH1106_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 
 
 // Rotary encoder setup
+#define BTN_PIN 4
 Encoder enc(3,2);
 long encPos = 0;
+bool lastBtnRead = HIGH;
+bool btnState = HIGH;
+long lastBtnEvent = 0;
+long tPress = 0;
+bool toggleDone = false;
 const unsigned long DebounceMs = 250;
+const unsigned long HoldMs = 1000;
 unsigned long lastEventMs = 0;
 const int CountPerDetent = 4;
 const double MhzInc = 0.2;
@@ -74,6 +79,7 @@ void setup() {
   radio.awake();
   currentFreq = settings.lastFreq;
   radio.setFrequency(currentFreq);
+  pinMode(BTN_PIN, INPUT_PULLUP); // Rotary btn pin
 
   // DISPLAY
   u8g2.begin();
@@ -81,9 +87,11 @@ void setup() {
 }
 
 void loop() {
+  unsigned long t = millis();
   long newPos = enc.read();
+  bool btnRead = digitalRead(BTN_PIN);
+
   if (newPos != encPos) {
-    unsigned long t = millis();
     if (t - lastEventMs >= DebounceMs) {
       // Increment current frequency by number of detents
       double freqInc = (newPos > encPos) ? ceil(double(newPos - encPos) / CountPerDetent) : floor(double(newPos - encPos) / CountPerDetent);
@@ -103,6 +111,29 @@ void loop() {
     }
     encPos = newPos;
   }
+
+  if (btnRead != lastBtnRead) {
+    lastBtnEvent = t;
+    lastBtnRead = btnRead;
+  }
+  if (t - lastBtnEvent >= DebounceMs && btnRead != btnState) {
+    btnState = btnRead;
+    if (btnState == LOW) {
+      tPress = t;
+      Serial.println("Btn press");
+    } else toggleDone = false; 
+  }
+  if (btnState == LOW && t - tPress >= HoldMs && !toggleDone) {
+    Serial.println("Btn hold");
+    (isBookmark()) ? removeBookmark() : addBookmark();
+    toggleDone = true;
+    Serial.println(settings.bookmarksLen);
+    for (int i = 0; i < MaxBookmarks; i++) {
+      Serial.print(settings.bookmarks[i]);
+      Serial.print(", ");
+    }
+    Serial.println();
+  }
   
   char freqStr[5];
   dtostrf(currentFreq, 3, 1, freqStr);
@@ -115,6 +146,10 @@ void loop() {
     u8g2.drawStr(64-(u8g2.getStrWidth(freqStr)/2),50,freqStr);
     u8g2.setFont(u8g2_font_timR10_tr);
     u8g2.drawStr(98,64,"MHz");
+    if (isBookmark()) {
+      u8g2.setFont(u8g2_font_twelvedings_t_all);
+      u8g2.drawStr(2, 15, "B");
+    }
   } while ( u8g2.nextPage() );
 }
 
@@ -147,40 +182,79 @@ bool loadSettings() {
   }
 }
 
-bool addBookmark(double freq) {
+bool addBookmark() {
   // Return value = success
+  if (isBookmark()) return false;
+  Serial.println(settings.bookmarksLen);
+  Serial.println(MaxBookmarks);
+  Serial.println(settings.bookmarksLen < MaxBookmarks);
   if (settings.bookmarksLen < MaxBookmarks) {
-    settings.bookmarks[settings.bookmarksLen] = freq;
+    settings.bookmarks[settings.bookmarksLen] = currentFreq;
     settings.bookmarksLen++;
+    Serial.println("Bookmark added");
+    sortBookmarks();
+    saveSettings();
     return true;
-  } else {
-    return false;
-  }
+  } else return false;
 }
 
-bool removeBookmark(double freq) {
+bool removeBookmark() {
   // Return value = success
   for (int i = 0; i < settings.bookmarksLen; i++) {
-    if (settings.bookmarks[i] == freq) {
+    if (settings.bookmarks[i] == currentFreq) {
       settings.bookmarks[i] = 0.0;
       sortBookmarks();
+      saveSettings();
       return true;
     }
   }
   return false;
 }
 
+bool isBookmark() {
+  for (int i = 0; i < settings.bookmarksLen; i++) {
+    if (settings.bookmarks[i] == currentFreq) return true;
+  }
+  return false;
+}
+
 void sortBookmarks() {
   // Modified bubble sort algorithm
-  for (int i = 0; i < settings.bookmarksLen; i++) {
+  int i = 0;
+  while (i < MaxBookmarks) {
+    Serial.print(i);
+    Serial.print(" ");
     double val = settings.bookmarks[i];
+    Serial.println(val);
+    // if (val ==  0.0) {
+    //   for (int j = i+1; j < MaxBookmarks; j++) {
+    //     settings.bookmarks[j-1] = settings.bookmarks[j];
+    //   }
+    //   settings.bookmarks[MaxBookmarks-1] = 0.0;
+    // } else {
     int newIdx = i+1;
-    while ((val > settings.bookmarks[newIdx] || val == 0.0) && newIdx < settings.bookmarksLen-1) {
-      settings.bookmarks[newIdx-1] = settings.bookmarks[newIdx];
+    if (val == 0.0) newIdx = MaxBookmarks-1;
+    while (
+      (val > settings.bookmarks[newIdx] && settings.bookmarks[newIdx] != 0.0) 
+      && newIdx < MaxBookmarks-1
+      ) {
       newIdx++;
+      Serial.print("newIdx ");
+      Serial.println(newIdx);
     }
+    for (int j = i+1; j < newIdx; j++) {
+      settings.bookmarks[j-1] = settings.bookmarks[j];
+    }
+    i++;
     settings.bookmarks[newIdx-1] = val;
+    // }
   }
+
+  int len = 0;
+  for (int i = 0; i < MaxBookmarks; i++) {
+    if (settings.bookmarks[i] != 0.0) len++;
+  }
+  settings.bookmarksLen = len;
 }
 
 void radioPrintInfo(const tea5767_info_t *info) {
