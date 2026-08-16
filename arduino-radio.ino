@@ -55,6 +55,8 @@ const double MhzInc = 0.2;
 #define SETTINGS_ADDR 0
 const long SettingsId = 0xCAFE;
 const int MaxBookmarks = 10;
+bool bookmarkMode = false;
+int currentBookmark = 0;
 struct radio_settings_t {
   double lastFreq;
   int bookmarksLen;
@@ -93,16 +95,31 @@ void loop() {
 
   if (newPos != encPos) {
     if (t - lastEventMs >= DebounceMs) {
-      // Increment current frequency by number of detents
-      double freqInc = (newPos > encPos) ? ceil(double(newPos - encPos) / CountPerDetent) : floor(double(newPos - encPos) / CountPerDetent);
-      double newFreq = currentFreq + MhzInc * freqInc;
-      Serial.print("Enc delta: ");
-      Serial.println(double(newPos - encPos)/CountPerDetent);
-      Serial.print("New freq: ");
-      Serial.println(newFreq);
-      // Make sure new frequency is valid
-      if (newFreq <= FM_MAX && newFreq >= FM_MIN) {
-        currentFreq = newFreq;
+      if (!bookmarkMode) {
+        // Increment current frequency by number of detents
+        double freqInc = (newPos > encPos) ? ceil(double(newPos - encPos) / CountPerDetent) : floor(double(newPos - encPos) / CountPerDetent);
+        double newFreq = currentFreq + MhzInc * freqInc;
+        Serial.print("Enc delta: ");
+        Serial.println(double(newPos - encPos)/CountPerDetent);
+        Serial.print("New freq: ");
+        Serial.println(newFreq);
+        // Make sure new frequency is valid
+        if (newFreq <= FM_MAX && newFreq >= FM_MIN) {
+          currentFreq = newFreq;
+          radio.setFrequency(currentFreq);
+          settings.lastFreq = currentFreq;
+          saveSettings();
+        }
+      } else {
+        // Bookmark mode: increment/decrement 1 bookmark
+        if (newPos > encPos) currentBookmark++;
+        else currentBookmark--;
+        
+        // Wrap indices
+        if (currentBookmark > settings.bookmarksLen-1) currentBookmark = 0;
+        else if (currentBookmark < 0) currentBookmark = settings.bookmarksLen-1;
+
+        currentFreq = settings.bookmarks[currentBookmark];
         radio.setFrequency(currentFreq);
         settings.lastFreq = currentFreq;
         saveSettings();
@@ -121,7 +138,12 @@ void loop() {
     if (btnState == LOW) {
       tPress = t;
       Serial.println("Btn press");
-    } else toggleDone = false; 
+    } else {
+      // Btn released
+      if (!toggleDone && settings.bookmarksLen > 0) {
+        bookmarkMode = !bookmarkMode;
+      } else toggleDone = false; 
+    }
   }
   if (btnState == LOW && t - tPress >= HoldMs && !toggleDone) {
     Serial.println("Btn hold");
@@ -146,6 +168,9 @@ void loop() {
     u8g2.drawStr(64-(u8g2.getStrWidth(freqStr)/2),50,freqStr);
     u8g2.setFont(u8g2_font_timR10_tr);
     u8g2.drawStr(98,64,"MHz");
+    if (bookmarkMode) {
+      u8g2.drawStr(60, 12, "Bookmarks");
+    }
     if (isBookmark()) {
       u8g2.setFont(u8g2_font_twelvedings_t_all);
       u8g2.drawStr(2, 15, "B");
@@ -205,6 +230,7 @@ bool removeBookmark() {
       settings.bookmarks[i] = 0.0;
       sortBookmarks();
       saveSettings();
+      if (settings.bookmarksLen == 0 && bookmarkMode) bookmarkMode = false;
       return true;
     }
   }
