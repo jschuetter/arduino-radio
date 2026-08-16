@@ -64,7 +64,7 @@ void setup() {
   Serial.begin(9600);
 
   // Load settings from EEPROM
-  loadSuccess = load_settings();
+  loadSuccess = loadSettings();
   if (!loadSuccess) {
     Serial.println("Could not load settings.");
   }
@@ -97,7 +97,7 @@ void loop() {
         currentFreq = newFreq;
         radio.setFrequency(currentFreq);
         settings.lastFreq = currentFreq;
-        save_settings();
+        saveSettings();
       }
       lastEventMs = millis();
     }
@@ -119,11 +119,11 @@ void loop() {
 }
 
 
-void save_settings() {
+void saveSettings() {
   EEPROM.put(SETTINGS_ADDR, settings);
 }
 
-bool load_settings() {
+bool loadSettings() {
   // Returns True if settings successfully loaded
   radio_settings_t s = EEPROM.get(SETTINGS_ADDR, s);
   Serial.println("Settings loaded:");
@@ -142,13 +142,45 @@ bool load_settings() {
     memset(s.bookmarks, 0.0, sizeof(s.bookmarks));
     s.id = SettingsId;
     settings = s;
-    save_settings();
+    saveSettings();
     return false;
   }
 }
 
 bool addBookmark(double freq) {
-  if (settings.bookmarksLen < )
+  // Return value = success
+  if (settings.bookmarksLen < MaxBookmarks) {
+    settings.bookmarks[settings.bookmarksLen] = freq;
+    settings.bookmarksLen++;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool removeBookmark(double freq) {
+  // Return value = success
+  for (int i = 0; i < settings.bookmarksLen; i++) {
+    if (settings.bookmarks[i] == freq) {
+      settings.bookmarks[i] = 0.0;
+      sortBookmarks();
+      return true;
+    }
+  }
+  return false;
+}
+
+void sortBookmarks() {
+  // Modified bubble sort algorithm
+  for (int i = 0; i < settings.bookmarksLen; i++) {
+    double val = settings.bookmarks[i];
+    int newIdx = i+1;
+    while ((val > settings.bookmarks[newIdx] || val == 0.0) && newIdx < settings.bookmarksLen-1) {
+      settings.bookmarks[newIdx-1] = settings.bookmarks[newIdx];
+      newIdx++;
+    }
+    settings.bookmarks[newIdx-1] = val;
+  }
 }
 
 void radioPrintInfo(const tea5767_info_t *info) {
