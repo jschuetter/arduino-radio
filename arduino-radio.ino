@@ -1,7 +1,16 @@
-// TEA7567 setup
+// TEA5767
 #include <Wire.h>
 #include <TEA5767.h>
+// SSD1306
+#include <Arduino.h>
+#include <SPI.h>
+#include <U8g2lib.h>
+// Other includes
+#include <Encoder.h>
+#include <EEPROM.h>
 
+
+// TEA5767 setup
 #define FM_MIN 88.0
 #define FM_MAX 108.0
 
@@ -25,17 +34,11 @@ int stationCount;
 double currentFreq = 90.9;
 
 // SSD1306 setup
-#include <Arduino.h>
-#include <SPI.h>
-#include <U8g2lib.h>
-
 // U8G2_SSD1306_128X64_NONAME_1_4W_SW_SPI u8g2(U8G2_R0, /* clock=*/ 13, /* data=*/ 11, /* cs=*/ 10, /* dc=*/ 9, /* reset=*/ 8);
 U8G2_SH1106_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 
 
 // Rotary encoder setup
-#include <Encoder.h>
-
 Encoder enc(3,2);
 long encPos = 0;
 const unsigned long debounceMs = 250;
@@ -44,7 +47,6 @@ const int countPerDetent = 4;
 const double mhzInc = 0.2;
 
 // EEPROM setup for storing bookmarks and last freq. value
-#include <EEPROM.h>
 #define SETTINGS_ADDR 0
 const long settings_id = 0xCAFE;
 struct radio_settings_t {
