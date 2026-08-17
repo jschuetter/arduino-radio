@@ -38,11 +38,14 @@ U8G2_SH1106_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 
 // Rotary encoder setup
 #define BTN_PIN 4
+#define MODE_PIN 13
 Encoder enc(3,2);
 long encPos = 0;
 bool lastBtnRead = HIGH;
 bool btnState = HIGH;
 long lastBtnEvent = 0;
+bool lastModeRead = LOW;
+long lastModeEvent = 0;
 long tPress = 0;
 bool toggleDone = false;
 const unsigned long DebounceMs = 250;
@@ -56,6 +59,7 @@ const double MhzInc = 0.2;
 const long SettingsId = 0xCAFE;
 const int MaxBookmarks = 10;
 bool bookmarkMode = false;
+bool btMode = false;
 int currentBookmark = 0;
 struct radio_settings_t {
   double lastFreq;
@@ -81,7 +85,8 @@ void setup() {
   radio.awake();
   currentFreq = settings.lastFreq;
   radio.setFrequency(currentFreq);
-  pinMode(BTN_PIN, INPUT_PULLUP); // Rotary btn pin
+  pinMode(BTN_PIN, INPUT_PULLUP);
+  pinMode(MODE_PIN, INPUT_PULLUP);
 
   // DISPLAY
   u8g2.begin();
@@ -89,6 +94,25 @@ void setup() {
 }
 
 void loop() {
+  unsigned long t = millis();
+  bool modeRead = digitalRead(MODE_PIN);
+  if (modeRead != lastModeRead) {
+    lastModeEvent = t;
+    lastModeRead = modeRead;
+  }
+  if (t - lastModeEvent >= DebounceMs && modeRead != btMode) {
+    btMode = modeRead;
+  }
+  
+  // LOW = FM mode; HIGH = BT mode
+  if (btMode == HIGH) {
+    loopBT();
+  } else {
+    loopFM();
+  }
+}
+
+void loopFM() {
   unsigned long t = millis();
   long newPos = enc.read();
   bool btnRead = digitalRead(BTN_PIN);
@@ -178,6 +202,17 @@ void loop() {
   } while ( u8g2.nextPage() );
 }
 
+void loopBT() {
+  u8g2.firstPage();
+  do {
+    // u8g2.setFont(u8g2_font_open_iconic_play_4x_t);
+    // u8g2.drawStr(64-(u8g2.getStrWidth("M")/2),40,"M");
+    u8g2.setFont(u8g2_font_streamline_music_audio_t);
+    u8g2.drawStr(64-(u8g2.getStrWidth("0")/2),40,"0");
+    u8g2.setFont(u8g2_font_timR10_tr);
+    u8g2.drawStr(64-(u8g2.getStrWidth("BT AUDIO")/2),64,"BT AUDIO");
+  } while ( u8g2.nextPage() );
+}
 
 void saveSettings() {
   EEPROM.put(SETTINGS_ADDR, settings);
