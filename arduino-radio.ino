@@ -205,8 +205,6 @@ void loopFM() {
 void loopBT() {
   u8g2.firstPage();
   do {
-    // u8g2.setFont(u8g2_font_open_iconic_play_4x_t);
-    // u8g2.drawStr(64-(u8g2.getStrWidth("M")/2),40,"M");
     u8g2.setFont(u8g2_font_streamline_music_audio_t);
     u8g2.drawStr(64-(u8g2.getStrWidth("0")/2),40,"0");
     u8g2.setFont(u8g2_font_timR10_tr);
